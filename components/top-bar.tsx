@@ -4,14 +4,18 @@ import { ChevronLeft } from 'lucide-react-native';
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 
-const TopBar = ({ title }) => {
+const TopBar = ({ title, showBackButton = true }) => {
     const router = useRouter();
 
     return (
         <View style={styles.header}>
-            <TouchableOpacity onPress={() => router.back()}>
-                <ChevronLeft size={26} color={bg.teriary} />
-            </TouchableOpacity>
+            {showBackButton ? (
+                <TouchableOpacity onPress={() => router.back()}>
+                    <ChevronLeft size={26} color={bg.tertiary} />
+                </TouchableOpacity>
+            ) : (
+                <View style={{ width: 26 }} />
+            )}
 
             <Text style={styles.headerTitle}>{title}</Text>
 

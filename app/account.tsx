@@ -5,7 +5,8 @@ import { useRouter } from "expo-router";
 import {
   LogOut,
   MapPin,
-  ShoppingBag
+  ShoppingBag,
+  Shield
 } from "lucide-react-native";
 import React from "react";
 import {
@@ -31,6 +32,10 @@ const MENU_ITEMS: MenuItem[] = [
   // { id: "3", icon: Heart, label: "My Wishlist" },
   // { id: "5", icon: Wallet, label: "My Wallet" },
   // { id: "6", icon: HelpCircle, label: "Help & Support" },
+];
+
+const ADMIN_MENU_ITEMS: MenuItem[] = [
+  { id: "admin", icon: Shield, label: "Admin", redirectTo: "/admin" },
 ];
 
 export default function AccountScreen() {
@@ -85,6 +90,29 @@ export default function AccountScreen() {
             </TouchableOpacity>
           );
         })}
+
+        {/* Admin Section - Only for owners */}
+        {(user?.type === 'owner') && (
+          <>
+            <Text style={styles.sectionTitle}>Admin</Text>
+            {ADMIN_MENU_ITEMS.map((item) => {
+              const Icon = item.icon;
+
+              return (
+                <TouchableOpacity key={item.id} style={styles.menuItem} onPress={()=>{
+                  router.push(item.redirectTo)
+                }} >
+                  <View style={styles.menuLeft}>
+                    <Icon size={22} color={bg.tertiary} />
+                    <Text style={styles.menuText}>{item.label}</Text>
+                  </View>
+
+                  <Text style={styles.arrow}>›</Text>
+                </TouchableOpacity>
+              );
+            })}
+          </>
+        )}
 
         {/* Logout */}
         <TouchableOpacity
@@ -193,6 +221,14 @@ const styles = StyleSheet.create({
   menuText: {
     color: "#fff",
     fontWeight: "600",
+  },
+
+  sectionTitle: {
+    color: "#E69126",
+    fontSize: 14,
+    fontWeight: "bold",
+    marginTop: 20,
+    marginBottom: 10,
   },
 
   arrow: {

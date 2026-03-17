@@ -43,12 +43,12 @@ function Index() {
   const handleLogin = async () => {
     // console.log("Login pressed", email, password);
     const req = await login(email,password)
-    console.log(req)
-    if(req.success){
-      router.push("/catalog");
-    } else{
-      setError(req.message || "something went wrong")
-    }
+    router.push("/catalog");
+    // if(req.success){
+    //   router.push("/catalog");
+    // } else{
+    //   setError(req.message || "something went wrong")
+    // }
   };
 
   return (
