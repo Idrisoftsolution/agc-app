@@ -5,8 +5,8 @@ import { useRouter } from "expo-router";
 import {
   LogOut,
   MapPin,
-  ShoppingBag,
-  Shield
+  Shield,
+  ShoppingBag
 } from "lucide-react-native";
 import React from "react";
 import {
@@ -92,7 +92,8 @@ export default function AccountScreen() {
         })}
 
         {/* Admin Section - Only for owners */}
-        {(user?.type === 'owner') && (
+        {console.log(user)}
+        {(user?.role === 'owner') && (
           <>
             <Text style={styles.sectionTitle}>Admin</Text>
             {ADMIN_MENU_ITEMS.map((item) => {

@@ -1,9 +1,10 @@
 import { bg } from "@/assets/css/css";
-import { useRouter, useLocalSearchParams } from "expo-router";
+import BottomBar from "@/components/bottom-bar";
+import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ArrowLeft,
 } from "lucide-react-native";
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   Alert,
   ScrollView,
@@ -32,6 +33,18 @@ interface Product {
   };
 }
 
+interface FormState {
+  name: string;
+  slug: string;
+  catalogue: string;
+  material: string;
+  price: string;
+  stock: string;
+  description: string;
+  imageSource: string;
+  imageKey: string;
+}
+
 const MATERIALS = ["gold", "silver", "diamond", "platinum", "artificial"];
 const CATALOGUES = ["rings", "necklaces", "bracelets", "earrings", "pendants", "bangles", "chains", "watches", "other"];
 
@@ -43,45 +56,51 @@ export default function ProductFormScreen() {
   const editProduct: Product | null = params.product ? JSON.parse(params.product as string) : null;
   const isEditMode = !!editProduct;
 
-  const [name, setName] = useState(editProduct?.name || "");
-  const [slug, setSlug] = useState(editProduct?.slug || "");
-  const [catalogue, setCatalogue] = useState(editProduct?.catalogue || "");
-  const [material, setMaterial] = useState(editProduct?.material || "");
-  const [price, setPrice] = useState(editProduct?.price?.toString() || "");
-  const [stock, setStock] = useState(editProduct?.stock?.toString() || "0");
-  const [description, setDescription] = useState(editProduct?.description || "");
-  const [imageSource, setImageSource] = useState(editProduct?.image?.source || "");
-  const [imageKey, setImageKey] = useState(editProduct?.image?.key || "");
+  const [formState, setFormState] = useState<FormState>({
+    name: editProduct?.name || "",
+    slug: editProduct?.slug || "",
+    catalogue: editProduct?.catalogue || "",
+    material: editProduct?.material || "",
+    price: editProduct?.price?.toString() || "",
+    stock: editProduct?.stock?.toString() || "0",
+    description: editProduct?.description || "",
+    imageSource: editProduct?.image?.source || "",
+    imageKey: editProduct?.image?.key || "",
+  });
   const [loading, setLoading] = useState(false);
 
+  const updateField = (field: keyof FormState, value: string) => {
+    setFormState(prev => ({ ...prev, [field]: value }));
+  };
+
   useEffect(() => {
-    if (!isEditMode) {
-      setSlug(name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""));
+    if (!isEditMode && formState.name) {
+      updateField("slug", formState.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""));
     }
-  }, [name]);
+  }, [formState.name]);
 
   const handleSubmit = async () => {
-    if (!name.trim()) {
+    if (!formState.name.trim()) {
       Alert.alert("Error", "Product name is required");
       return;
     }
-    if (!slug.trim()) {
+    if (!formState.slug.trim()) {
       Alert.alert("Error", "Product slug is required");
       return;
     }
-    if (!catalogue) {
+    if (!formState.catalogue) {
       Alert.alert("Error", "Please select a catalogue");
       return;
     }
-    if (!material) {
+    if (!formState.material) {
       Alert.alert("Error", "Please select a material");
       return;
     }
-    if (!price || parseFloat(price) < 0) {
+    if (!formState.price || parseFloat(formState.price) < 0) {
       Alert.alert("Error", "Please enter a valid price");
       return;
     }
-    if (!imageSource.trim()) {
+    if (!formState.imageSource.trim()) {
       Alert.alert("Error", "Image source URL is required");
       return;
     }
@@ -89,16 +108,16 @@ export default function ProductFormScreen() {
     setLoading(true);
     try {
       const productData = {
-        name: name.trim(),
-        slug: slug.trim().toLowerCase(),
-        catalogue,
-        material,
-        price: parseFloat(price),
-        stock: stock ? parseInt(stock) : 0,
-        description: description.trim(),
+        name: formState.name.trim(),
+        slug: formState.slug.trim().toLowerCase(),
+        catalogue: formState.catalogue,
+        material: formState.material,
+        price: parseFloat(formState.price),
+        stock: formState.stock ? parseInt(formState.stock) : 0,
+        description: formState.description.trim(),
         image: {
-          source: imageSource.trim(),
-          key: imageKey.trim() || `img_${Date.now()}`,
+          source: formState.imageSource.trim(),
+          key: formState.imageKey.trim() || `img_${Date.now()}`,
         },
       };
 
@@ -167,8 +186,8 @@ export default function ProductFormScreen() {
           <Text style={styles.label}>Product Name *</Text>
           <TextInput
             style={styles.input}
-            value={name}
-            onChangeText={setName}
+            value={formState.name}
+            onChangeText={(value) => updateField("name", value)}
             placeholder="Enter product name"
             placeholderTextColor="#666"
           />
@@ -178,24 +197,24 @@ export default function ProductFormScreen() {
           <Text style={styles.label}>Slug *</Text>
           <TextInput
             style={styles.input}
-            value={slug}
-            onChangeText={setSlug}
+            value={formState.slug}
+            onChangeText={(value) => updateField("slug", value)}
             placeholder="product-slug"
             placeholderTextColor="#666"
             autoCapitalize="none"
           />
         </View>
 
-        {renderDropdown("Catalogue *", catalogue, CATALOGUES, setCatalogue)}
+        {renderDropdown("Catalogue *", formState.catalogue, CATALOGUES, (value) => updateField("catalogue", value))}
 
-        {renderDropdown("Material *", material, MATERIALS, setMaterial)}
+        {renderDropdown("Material *", formState.material, MATERIALS, (value) => updateField("material", value))}
 
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Price (₹) *</Text>
           <TextInput
             style={styles.input}
-            value={price}
-            onChangeText={setPrice}
+            value={formState.price}
+            onChangeText={(value) => updateField("price", value)}
             placeholder="Enter price"
             placeholderTextColor="#666"
             keyboardType="numeric"
@@ -206,8 +225,8 @@ export default function ProductFormScreen() {
           <Text style={styles.label}>Stock</Text>
           <TextInput
             style={styles.input}
-            value={stock}
-            onChangeText={setStock}
+            value={formState.stock}
+            onChangeText={(value) => updateField("stock", value)}
             placeholder="0"
             placeholderTextColor="#666"
             keyboardType="numeric"
@@ -218,8 +237,8 @@ export default function ProductFormScreen() {
           <Text style={styles.label}>Description</Text>
           <TextInput
             style={[styles.input, styles.textArea]}
-            value={description}
-            onChangeText={setDescription}
+            value={formState.description}
+            onChangeText={(value) => updateField("description", value)}
             placeholder="Enter product description"
             placeholderTextColor="#666"
             multiline
@@ -231,8 +250,8 @@ export default function ProductFormScreen() {
           <Text style={styles.label}>Image URL *</Text>
           <TextInput
             style={styles.input}
-            value={imageSource}
-            onChangeText={setImageSource}
+            value={formState.imageSource}
+            onChangeText={(value) => updateField("imageSource", value)}
             placeholder="https://..."
             placeholderTextColor="#666"
             autoCapitalize="none"
@@ -244,8 +263,8 @@ export default function ProductFormScreen() {
           <Text style={styles.label}>Image Key</Text>
           <TextInput
             style={styles.input}
-            value={imageKey}
-            onChangeText={setImageKey}
+            value={formState.imageKey}
+            onChangeText={(value) => updateField("imageKey", value)}
             placeholder="image-key"
             placeholderTextColor="#666"
             autoCapitalize="none"
@@ -262,6 +281,8 @@ export default function ProductFormScreen() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      <BottomBar />
     </SafeAreaView>
   );
 }

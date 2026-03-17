@@ -1,23 +1,24 @@
 import { bg } from "@/assets/css/css";
+import BottomBar from "@/components/bottom-bar";
+import { useAuth } from "@/context/AuthContext";
 import { useRouter } from "expo-router";
 import {
   ArrowLeft,
-  Trash2,
+  Edit,
   Plus,
-  Edit
+  Trash2
 } from "lucide-react-native";
 import React, { useEffect, useState } from "react";
 import {
-  Alert,
   FlatList,
   Image,
   StyleSheet,
   Text,
-  TextInput,
   TouchableOpacity,
-  View,
+  View
 } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
+import AlertDialog, { AlertDialogAction, AlertDialogCancel, AlertDialogDescription, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { deleteProduct, getProductsByUserId } from "../../services/product";
 
 interface Product {
@@ -42,8 +43,11 @@ const CATALOGUES = ["rings", "necklaces", "bracelets", "earrings", "pendants", "
 export default function AdminProductsScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
+  const {user} = useAuth();
   const [products, setProducts] = useState<Product[]>([]);
   const [loading, setLoading] = useState(true);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [productToDelete, setProductToDelete] = useState<string | null>(null);
 
   useEffect(() => {
     loadProducts();
@@ -52,7 +56,7 @@ export default function AdminProductsScreen() {
   const loadProducts = async () => {
     try {
       setLoading(true);
-      const response = await getProductsByUserId("current-user-id");
+      const response = await getProductsByUserId(user?.id || "");
       if (response.success) {
         setProducts(response.products || []);
       }
@@ -63,29 +67,25 @@ export default function AdminProductsScreen() {
     }
   };
 
-  const handleDelete = (productId: string) => {
-    Alert.alert(
-      "Delete Product",
-      "Are you sure you want to delete this product?",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              const token = "user-token"; // Get from auth context
-              const response = await deleteProduct(productId, token);
-              if (response.success) {
-                setProducts(products.filter(p => p.id !== productId));
-              }
-            } catch (error) {
-              console.error("Error deleting product:", error);
-            }
-          },
-        },
-      ]
-    );
+  const handleDeleteClick = (productId: string) => {
+    setProductToDelete(productId);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = async () => {
+    if (!productToDelete) return;
+    try {
+      const token = "user-token"; // Get from auth context
+      const response = await deleteProduct(productToDelete, token);
+      if (response.success) {
+        setProducts(products.filter(p => p.id !== productToDelete));
+      }
+    } catch (error) {
+      console.error("Error deleting product:", error);
+    } finally {
+      setDeleteDialogOpen(false);
+      setProductToDelete(null);
+    }
   };
 
   const renderProduct = ({ item }: { item: Product }) => (
@@ -119,7 +119,7 @@ export default function AdminProductsScreen() {
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => handleDelete(item.id)}
+          onPress={() => handleDeleteClick(item.id)}
         >
           <Trash2 size={18} color="#F44336" />
         </TouchableOpacity>
@@ -162,6 +162,17 @@ export default function AdminProductsScreen() {
           contentContainerStyle={styles.listContainer}
         />
       )}
+
+      <AlertDialog open={deleteDialogOpen} setOpen={setDeleteDialogOpen}>
+        <AlertDialogTitle>Delete Product</AlertDialogTitle>
+        <AlertDialogDescription>Are you sure you want to delete this product? This action cannot be undone.</AlertDialogDescription>
+        <View style={styles.dialogFooter}>
+          <AlertDialogCancel onPress={() => setDeleteDialogOpen(false)}>Cancel</AlertDialogCancel>
+          <AlertDialogAction onPress={confirmDelete}>Delete</AlertDialogAction>
+        </View>
+      </AlertDialog>
+
+      <BottomBar />
     </SafeAreaView>
   );
 }
@@ -287,5 +298,11 @@ const styles = StyleSheet.create({
   emptySubtext: {
     color: "#666",
     fontSize: 13,
+  },
+  dialogFooter: {
+    flexDirection: "row",
+    justifyContent: "flex-end",
+    gap: 12,
+    marginTop: 20,
   },
 });

@@ -1,3 +1,4 @@
+import BottomBar from "@/components/bottom-bar";
 import TopBar from "@/components/top-bar";
 import { useRouter } from "expo-router";
 import {
@@ -72,6 +73,8 @@ export default function AdminScreen() {
           );
         })}
       </ScrollView>
+
+      <BottomBar />
     </SafeAreaView>
   );
 }
