@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const PlanClient = axios.create({
-    baseURL: `${process.env.EXPO_PUBLIC_BACKEND_API}/api/plan`,
+    baseURL: `${process.env.EXPO_PUBLIC_BACKEND_API}/v1/plan`,
     headers: {
         'Content-Type': 'application/json'
     },

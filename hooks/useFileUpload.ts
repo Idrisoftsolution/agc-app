@@ -1,84 +1,68 @@
-import { singleUpload } from '@/service/upload';
 import { useState } from 'react';
+import { singleUpload } from '../services/upload';
 
 interface UploadOptions {
-  bucket: 'service'|'project'|'blog';
   folder?: string;
   fileName?: string;
+  mimeType?: string;
+}
+
+interface UploadResult {
+  url: string | null;
+  key: string | null;
+  error: string | null;
 }
 
 export const useFileUpload = () => {
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
 
-  const uploadFile = async (
-    file: File,
-    options: UploadOptions
-  ): Promise<{ url: string | null; error: string | null }> => {
+  const uploadFile = async (uri: string, options: UploadOptions = {}): Promise<UploadResult> => {
+    console.log("=== UPLOAD DEBUG ===");
+    console.log("URI:", uri);
+    console.log("FileName:", options.fileName);
+    console.log("MimeType:", options.mimeType);
+    console.log("Folder:", options.folder);
+    
     try {
       setUploading(true);
       setUploadProgress(0);
 
+      const fileName = options.fileName || `${Date.now()}.jpg`;
+      const mimeType = options.mimeType || 'image/jpeg';
+      const folder = options.folder || 'products';
 
-
-      // Generate unique filename if not provided
-      const timestamp = Date.now();
-      const fileExt = file.name.split('.').pop();
-      const fileName = options.fileName || `${timestamp}.${fileExt}`;
-
-      // Construct file path
-      const filePath = options.folder
-        ? `${options.folder}/${fileName}`
-        : fileName;
-
-      // Simulate progress updates
-      const progressInterval = setInterval(() => {
-        setUploadProgress(prev => Math.min(prev + 10, 90));
-      }, 200);
-
+      console.log("Making upload request...");
+      const response: any = await singleUpload(uri, fileName, mimeType, folder);
       
-      const formData = new FormData();
-      formData.append('file', file);
-      formData.append('folder',options.folder );
-      const response = await singleUpload(formData);
-      console.log(response)
-      clearInterval(progressInterval);
-
-
       setUploadProgress(100);
-      // console.log(response.url)
-      return { url: response.url, error: null,key:response.key };
+
+      if (response && response.url) {
+        return { url: response.url, key: response.key || null, error: null };
+      } else {
+        return { url: null, key: null, error: response?.error || 'Upload failed' };
+      }
 
     } catch (error: any) {
       console.error('Upload error:', error);
-      return { url: null, error: error.message };
+      return { url: null, key: null, error: error.message || 'Upload failed' };
     } finally {
       setUploading(false);
       setTimeout(() => setUploadProgress(0), 1000);
     }
   };
 
-  const deleteFile = async (
-    bucket: string,
-    filePath: string
-  ): Promise<{ success: boolean; error: string | null }> => {
+  const deleteFile = async (key: string): Promise<{ success: boolean; error: string | null }> => {
     try {
-    
-
       return { success: true, error: null };
     } catch (error: any) {
       return { success: false, error: error.message };
     }
   };
 
-  const getFileUrl = (bucket: string, filePath: string): string => {
-    return "";
-  };
-
   return {
     uploadFile,
     deleteFile,
-    getFileUrl,
     uploading,
     uploadProgress
   };

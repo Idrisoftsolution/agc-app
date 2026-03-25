@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const StoreClient = axios.create({
-    baseURL: `${process.env.EXPO_PUBLIC_BACKEND_API}/api/store`,
+    baseURL: `${process.env.EXPO_PUBLIC_BACKEND_API}/v1/store`,
     headers: {
         'Content-Type': 'application/json'
     },

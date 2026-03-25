@@ -1,212 +1,246 @@
-import React, { useRef, useState } from 'react';
-import { Upload, X, CheckCircle, AlertCircle } from 'lucide-react';
-import { useFileUpload } from '@/hooks/useFileUpload';
-import { deleteImage } from '../../service/upload';
-
-
+import * as ImagePicker from 'expo-image-picker';
+import { AlertCircle, CheckCircle, Upload, X } from 'lucide-react-native';
+import React from 'react';
+import { ActivityIndicator, Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { bg } from '../../assets/css/css';
+import { useFileUpload } from '../../hooks/useFileUpload';
 
 interface FileUploadProps {
-  onUploadComplete: (url: string) => void;
-  accept?: string;
-  bucket:'service'|'project'|'blog';
+  onUploadComplete: (data: { url: string; key: string }) => void;
   folder?: string;
-  maxSize?: number; // in MB
   label: string;
   currentUrl?: string;
-  image_key?: string
+  currentKey?: string;
+}
+
+interface PickedFile {
+  uri: string;
+  name: string;
+  type: string;
 }
 
 const FileUpload: React.FC<FileUploadProps> = ({
   onUploadComplete,
-  accept = 'image/*',
-  bucket,
-  folder,
-  maxSize = 500,
+  folder = 'products',
   label,
   currentUrl,
-  image_key,
+  currentKey,
 }) => {
-  const [dragActive, setDragActive] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState<'idle' | 'success' | 'error'>('idle');
-  const [errorMessage, setErrorMessage] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const { uploadFile, uploading, uploadProgress } = useFileUpload();
+  const [previewUri, setPreviewUri] = React.useState<string | undefined>(currentUrl);
+  const [uploadStatus, setUploadStatus] = React.useState<'idle' | 'uploading' | 'success' | 'error'>('idle');
+  const [errorMessage, setErrorMessage] = React.useState('');
+  const [fileName, setFileName] = React.useState<string>('');
 
-  const handleFiles = async (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-
-    const file = files[0];
-
-    // Validate file size
-    if (file.size > maxSize * 1024 * 1024) {
-      setErrorMessage(`File size must be less than ${maxSize}MB`);
-      setUploadStatus('error');
-      return;
-    }
-
-    if(image_key){
-      deleteImage(image_key)
-    }
-    
-
-    // Reset status
-    setUploadStatus('idle');
-    setErrorMessage('');
-
-    // Upload file
-    const { url, error,key } = await uploadFile(file, {
-      bucket,
-      folder,
-      fileName: `${Date.now()}-${file.name}`
-    });
-    
-
-    if (error) {
-      setErrorMessage(error);
-      setUploadStatus('error');
-    } else if (url) {
-      setUploadStatus('success');
-      onUploadComplete({url,key});
-      setTimeout(() => setUploadStatus('idle'), 2000);
-    }
-  };
-
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-    handleFiles(e.dataTransfer.files);
-  };
-
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    handleFiles(e.target.files);
-  };
-
-  const openFileDialog = () => {
-    fileInputRef.current?.click();
-  };
-
-  const getStatusIcon = () => {
-    if (uploading) {
-      return (
-        <div className="animate-spin w-5 h-5 border-2 border-brand-red border-t-transparent rounded-full" />
-      );
-    }
-    if (uploadStatus === 'success') {
-      return <CheckCircle className="w-5 h-5 text-green-600" />;
-    }
-    if (uploadStatus === 'error') {
-      return <AlertCircle className="w-5 h-5 text-red-600" />;
-    }
-    return <Upload className="w-5 h-5 text-brand-dark/60" />;
-  };
-
-  const getStatusText = () => {
-    if (uploading) {
-      return `Uploading... ${uploadProgress}%`;
-    }
-    if (uploadStatus === 'success') {
-      return 'Upload successful!';
-    }
-    if (uploadStatus === 'error') {
-      return errorMessage;
-    }
+  React.useEffect(() => {
     if (currentUrl) {
-      return 'File uploaded - click to replace';
+      setPreviewUri(currentUrl);
     }
-    return `Click or drag ${label.toLowerCase()} here`;
+  }, [currentUrl]);
+
+  const pickDocument = async () => {
+    try {
+      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+      
+      if (!permissionResult.granted) {
+        setUploadStatus('error');
+        setErrorMessage('Permission to access media library is required');
+        return;
+      }
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        quality: 1,
+      });
+
+      console.log('Image picker result:', result);
+
+      if (!result.canceled && result.assets && result.assets[0]) {
+        const asset = result.assets[0];
+        console.log('Picked image:', asset);
+        
+        const fileName = asset.fileName || `image_${Date.now()}.jpg`;
+        setFileName(fileName);
+        
+        setPreviewUri(asset.uri);
+        
+        await handleUpload(asset.uri, fileName, asset.mimeType || 'image/jpeg');
+      }
+    } catch (error) {
+      console.error('Error picking image:', error);
+      setUploadStatus('error');
+      setErrorMessage('Failed to select file');
+    }
+  };
+
+  const handleUpload = async (uri: string, name: string, mimeType: string) => {
+    setUploadStatus('uploading');
+    setErrorMessage('');
+    console.log("Uploading file:", uri, name, mimeType);
+    
+    const result = await uploadFile(uri, { 
+      folder, 
+      fileName: name,
+      mimeType
+    });
+    console.log("Upload result:", result);
+
+    if (result.error) {
+      setUploadStatus('error');
+      setErrorMessage(result.error);
+    } else if (result.url) {
+      setUploadStatus('success');
+      onUploadComplete({ url: result.url, key: result.key || '' });
+      setTimeout(() => setUploadStatus('idle'), 2000);
+    } else {
+      setUploadStatus('error');
+      setErrorMessage('Upload failed - no URL returned');
+    }
+  };
+
+  const removeImage = () => {
+    setPreviewUri(undefined);
+    setFileName('');
+    setUploadStatus('idle');
+    onUploadComplete({ url: '', key: '' });
   };
 
   const getStatusColor = () => {
-    if (uploadStatus === 'success') return 'text-green-600';
-    if (uploadStatus === 'error') return 'text-red-600';
-    if (currentUrl) return 'text-green-600';
-    return 'text-brand-dark/60';
+    if (uploadStatus === 'uploading' || uploadStatus === 'success') return '#4CAF50';
+    if (uploadStatus === 'error') return '#F44336';
+    return '#666';
   };
 
+  const getStatusText = () => {
+    if (uploadStatus === 'uploading') return `Uploading... ${uploadProgress}%`;
+    if (uploadStatus === 'success') return 'Upload successful!';
+    if (uploadStatus === 'error') return errorMessage;
+    if (previewUri) return fileName || 'Click to replace';
+    return `Tap to upload ${label.toLowerCase()}`;
+  };
+
+  if (previewUri) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.label}>{label}</Text>
+        <View style={styles.previewContainer}>
+          <Image source={{ uri: previewUri }} style={styles.preview} />
+          <TouchableOpacity style={styles.removeButton} onPress={removeImage}>
+            <X size={18} color="#fff" />
+          </TouchableOpacity>
+        </View>
+        {fileName && <Text style={styles.fileName}>{fileName}</Text>}
+      </View>
+    );
+  }
+
   return (
-    <div className="space-y-2 ">
-      <label className="block font-roboto-slab text-sm text-brand-dark">
-        {label}
-      </label>
-      
-      <div
-        className={`relative border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-all duration-200 ${
-          dragActive
-            ? 'border-brand-red bg-brand-red/5'
-            : uploadStatus === 'success'
-            ? 'border-green-500 bg-green-50'
-            : uploadStatus === 'error'
-            ? 'border-red-500 bg-red-50'
-            : currentUrl
-            ? 'border-green-500 bg-green-50'
-            // ? 'border-brand-red bg-brand-red/5'
-            : 'border-brand-dark/20 hover:border-brand-red hover:bg-brand-red/5'
-        }`}
-        onDragEnter={handleDrag}
-        onDragLeave={handleDrag}
-        onDragOver={handleDrag}
-        onDrop={handleDrop}
-        onClick={openFileDialog}
+    <View style={styles.container}>
+      <Text style={styles.label}>{label}</Text>
+      <TouchableOpacity
+        style={[
+          styles.uploadButton,
+          uploadStatus === 'success' && styles.uploadButtonSuccess,
+          uploadStatus === 'error' && styles.uploadButtonError,
+        ]}
+        onPress={pickDocument}
+        disabled={uploadStatus === 'uploading'}
       >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept={accept}
-          onChange={handleInputChange}
-          className="hidden"
-          disabled={uploading}
-        />
-
-        <div className="flex flex-col items-center space-y-2">
-          {getStatusIcon()}
-          <p className={`font-roboto-thin text-sm ${getStatusColor()}`}>
-            {getStatusText()}
-          </p>
-          {!uploading && (
-            <p className="font-roboto-thin text-xs text-brand-dark/40">
-              Max size: {maxSize> 2000 ? "No limit" :  `${maxSize}MB`}
-            </p>
-          )}
-        </div>
-
-        {uploading && (
-          <div className="absolute bottom-0 left-0 right-0 h-1 bg-brand-dark/10 rounded-b-lg overflow-hidden">
-            <div
-              className="h-full bg-brand-red transition-all duration-300"
-              style={{ width: `${uploadProgress}%` }}
-            />
-          </div>
+        {uploadStatus === 'uploading' ? (
+          <ActivityIndicator color={bg.tertiary} />
+        ) : (
+          <>
+            {uploadStatus === 'success' ? (
+              <CheckCircle size={24} color="#4CAF50" />
+            ) : uploadStatus === 'error' ? (
+              <AlertCircle size={24} color="#F44336" />
+            ) : (
+              <Upload size={24} color={bg.tertiary} />
+            )}
+            <Text style={[styles.uploadText, { color: getStatusColor() }]}>
+              {getStatusText()}
+            </Text>
+          </>
         )}
-      </div>
-
-      {currentUrl && (
-        <div className="flex items-center justify-between p-2 bg-brand-dark/5 rounded text-xs">
-          <span className="font-roboto-thin text-brand-dark/70 truncate">
-            Current file uploaded
-          </span>
-          <a
-            href={currentUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-brand-red hover:text-brand-red/80 font-roboto-thin"
-          >
-            Preview
-          </a>
-        </div>
+      </TouchableOpacity>
+      {uploadStatus === 'uploading' && (
+        <View style={styles.progressBar}>
+          <View style={[styles.progressFill, { width: `${uploadProgress}%` }]} />
+        </View>
       )}
-    </div>
+    </View>
   );
 };
+
+const styles = StyleSheet.create({
+  container: {
+    marginBottom: 16,
+  },
+  label: {
+    color: '#aaa',
+    fontSize: 13,
+    marginBottom: 8,
+  },
+  uploadButton: {
+    backgroundColor: '#1C1D21',
+    borderRadius: 8,
+    padding: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: '#2A2B30',
+    borderStyle: 'dashed',
+    minHeight: 100,
+  },
+  uploadButtonSuccess: {
+    borderColor: '#4CAF50',
+    backgroundColor: '#1a4CAF50',
+  },
+  uploadButtonError: {
+    borderColor: '#F44336',
+    backgroundColor: '#1aF44336',
+  },
+  uploadText: {
+    marginTop: 8,
+    fontSize: 14,
+  },
+  progressBar: {
+    height: 4,
+    backgroundColor: '#2A2B30',
+    borderRadius: 2,
+    marginTop: 8,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: bg.tertiary,
+    borderRadius: 2,
+  },
+  previewContainer: {
+    position: 'relative',
+    alignItems: 'center',
+  },
+  preview: {
+    width: 120,
+    height: 120,
+    borderRadius: 8,
+    backgroundColor: '#1C1D21',
+  },
+  removeButton: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: '#F44336',
+    borderRadius: 12,
+    padding: 4,
+  },
+  fileName: {
+    color: '#aaa',
+    fontSize: 12,
+    marginTop: 8,
+    textAlign: 'center',
+  },
+});
 
 export default FileUpload;

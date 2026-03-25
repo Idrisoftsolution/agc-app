@@ -1,5 +1,7 @@
 import { bg } from "@/assets/css/css";
 import BottomBar from "@/components/bottom-bar";
+import FileUpload from "@/components/ui/FileUpload";
+import { useAuth } from "@/context/AuthContext";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import {
   ArrowLeft,
@@ -17,6 +19,11 @@ import {
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { addProduct, updateProduct } from "../../services/product";
 
+interface ProductImage {
+  source: string;
+  key: string;
+}
+
 interface Product {
   id: string;
   name: string;
@@ -27,10 +34,7 @@ interface Product {
   stock?: number;
   description?: string;
   tags?: string[];
-  image: {
-    source: string;
-    key: string;
-  };
+  image: ProductImage;
 }
 
 interface FormState {
@@ -41,8 +45,16 @@ interface FormState {
   price: string;
   stock: string;
   description: string;
-  imageSource: string;
-  imageKey: string;
+  image: ProductImage;
+}
+
+interface FormErrors {
+  name?: string;
+  slug?: string;
+  catalogue?: string;
+  material?: string;
+  price?: string;
+  image?: string;
 }
 
 const MATERIALS = ["gold", "silver", "diamond", "platinum", "artificial"];
@@ -52,6 +64,7 @@ export default function ProductFormScreen() {
   const insets = useSafeAreaInsets();
   const router = useRouter();
   const params = useLocalSearchParams();
+  const { token } = useAuth();
   
   const editProduct: Product | null = params.product ? JSON.parse(params.product as string) : null;
   const isEditMode = !!editProduct;
@@ -64,44 +77,69 @@ export default function ProductFormScreen() {
     price: editProduct?.price?.toString() || "",
     stock: editProduct?.stock?.toString() || "0",
     description: editProduct?.description || "",
-    imageSource: editProduct?.image?.source || "",
-    imageKey: editProduct?.image?.key || "",
+    image: {
+      source: editProduct?.image?.source || "",
+      key: editProduct?.image?.key || "",
+    },
   });
+
+  const [errors, setErrors] = useState<FormErrors>({});
   const [loading, setLoading] = useState(false);
 
-  const updateField = (field: keyof FormState, value: string) => {
+  const updateField = (field: keyof FormState, value: any) => {
     setFormState(prev => ({ ...prev, [field]: value }));
+    if (errors[field as keyof FormErrors]) {
+      setErrors(prev => ({ ...prev, [field]: undefined }));
+    }
+  };
+
+  const validateForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    if (!formState.name.trim()) {
+      newErrors.name = "Product name is required";
+    } else if (formState.name.trim().length < 2) {
+      newErrors.name = "Product name must be at least 2 characters";
+    }
+
+    if (!formState.slug.trim()) {
+      newErrors.slug = "Product slug is required";
+    } else if (!/^[a-z0-9-]+$/.test(formState.slug.trim())) {
+      newErrors.slug = "Slug can only contain lowercase letters, numbers, and hyphens";
+    }
+
+    if (!formState.catalogue) {
+      newErrors.catalogue = "Please select a catalogue";
+    }
+
+    if (!formState.material) {
+      newErrors.material = "Please select a material";
+    }
+
+    if (!formState.price) {
+      newErrors.price = "Price is required";
+    } else if (isNaN(parseFloat(formState.price)) || parseFloat(formState.price) < 0) {
+      newErrors.price = "Please enter a valid price";
+    }
+
+    if (!formState.image.source.trim()) {
+      newErrors.image = "Product image is required";
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   useEffect(() => {
     if (!isEditMode && formState.name) {
-      updateField("slug", formState.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, ""));
+      const slug = formState.name.toLowerCase().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "");
+      updateField("slug", slug);
     }
   }, [formState.name]);
 
   const handleSubmit = async () => {
-    if (!formState.name.trim()) {
-      Alert.alert("Error", "Product name is required");
-      return;
-    }
-    if (!formState.slug.trim()) {
-      Alert.alert("Error", "Product slug is required");
-      return;
-    }
-    if (!formState.catalogue) {
-      Alert.alert("Error", "Please select a catalogue");
-      return;
-    }
-    if (!formState.material) {
-      Alert.alert("Error", "Please select a material");
-      return;
-    }
-    if (!formState.price || parseFloat(formState.price) < 0) {
-      Alert.alert("Error", "Please enter a valid price");
-      return;
-    }
-    if (!formState.imageSource.trim()) {
-      Alert.alert("Error", "Image source URL is required");
+    console.log("Form state:", formState);
+    if (!validateForm()) {
       return;
     }
 
@@ -116,18 +154,18 @@ export default function ProductFormScreen() {
         stock: formState.stock ? parseInt(formState.stock) : 0,
         description: formState.description.trim(),
         image: {
-          source: formState.imageSource.trim(),
-          key: formState.imageKey.trim() || `img_${Date.now()}`,
+          source: formState.image.source.trim(),
+          key: formState.image.key.trim() || `img_${Date.now()}`,
         },
       };
 
-      const token = "user-token"; // Get from auth context
+      console.log("Submitting product:", productData);
 
       let response;
       if (isEditMode && editProduct) {
-        response = await updateProduct(editProduct.id, productData, token);
+        response = await updateProduct(editProduct.id, productData, token || '');
       } else {
-        response = await addProduct(productData, token);
+        response = await addProduct(productData, token || '');
       }
 
       if (response.success) {
@@ -151,7 +189,8 @@ export default function ProductFormScreen() {
     label: string,
     value: string,
     options: string[],
-    onSelect: (value: string) => void
+    onSelect: (value: string) => void,
+    error?: string
   ) => (
     <View style={styles.inputContainer}>
       <Text style={styles.label}>{label}</Text>
@@ -159,15 +198,23 @@ export default function ProductFormScreen() {
         {options.map((option) => (
           <TouchableOpacity
             key={option}
-            style={[styles.dropdownOption, value === option && styles.dropdownOptionSelected]}
+            style={[
+              styles.dropdownOption,
+              value === option && styles.dropdownOptionSelected,
+              error && styles.dropdownOptionError
+            ]}
             onPress={() => onSelect(option)}
           >
-            <Text style={[styles.dropdownOptionText, value === option && styles.dropdownOptionTextSelected]}>
+            <Text style={[
+              styles.dropdownOptionText,
+              value === option && styles.dropdownOptionTextSelected
+            ]}>
               {option.charAt(0).toUpperCase() + option.slice(1)}
             </Text>
           </TouchableOpacity>
         ))}
       </View>
+      {error && <Text style={styles.errorText}>{error}</Text>}
     </View>
   );
 
@@ -185,40 +232,43 @@ export default function ProductFormScreen() {
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Product Name *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errors.name && styles.inputError]}
             value={formState.name}
             onChangeText={(value) => updateField("name", value)}
             placeholder="Enter product name"
             placeholderTextColor="#666"
           />
+          {errors.name && <Text style={styles.errorText}>{errors.name}</Text>}
         </View>
 
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Slug *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errors.slug && styles.inputError]}
             value={formState.slug}
             onChangeText={(value) => updateField("slug", value)}
             placeholder="product-slug"
             placeholderTextColor="#666"
             autoCapitalize="none"
           />
+          {errors.slug && <Text style={styles.errorText}>{errors.slug}</Text>}
         </View>
 
-        {renderDropdown("Catalogue *", formState.catalogue, CATALOGUES, (value) => updateField("catalogue", value))}
+        {renderDropdown("Catalogue *", formState.catalogue, CATALOGUES, (value) => updateField("catalogue", value), errors.catalogue)}
 
-        {renderDropdown("Material *", formState.material, MATERIALS, (value) => updateField("material", value))}
+        {renderDropdown("Material *", formState.material, MATERIALS, (value) => updateField("material", value), errors.material)}
 
         <View style={styles.inputContainer}>
           <Text style={styles.label}>Price (₹) *</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, errors.price && styles.inputError]}
             value={formState.price}
             onChangeText={(value) => updateField("price", value)}
             placeholder="Enter price"
             placeholderTextColor="#666"
             keyboardType="numeric"
           />
+          {errors.price && <Text style={styles.errorText}>{errors.price}</Text>}
         </View>
 
         <View style={styles.inputContainer}>
@@ -246,30 +296,16 @@ export default function ProductFormScreen() {
           />
         </View>
 
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Image URL *</Text>
-          <TextInput
-            style={styles.input}
-            value={formState.imageSource}
-            onChangeText={(value) => updateField("imageSource", value)}
-            placeholder="https://..."
-            placeholderTextColor="#666"
-            autoCapitalize="none"
-            keyboardType="url"
-          />
-        </View>
-
-        <View style={styles.inputContainer}>
-          <Text style={styles.label}>Image Key</Text>
-          <TextInput
-            style={styles.input}
-            value={formState.imageKey}
-            onChangeText={(value) => updateField("imageKey", value)}
-            placeholder="image-key"
-            placeholderTextColor="#666"
-            autoCapitalize="none"
-          />
-        </View>
+        <FileUpload
+          label="Product Image *"
+          folder="products"
+          currentUrl={formState.image.source}
+          currentKey={formState.image.key}
+          onUploadComplete={(data) => {
+            updateField("image", { source: data.url, key: data.key });
+          }}
+        />
+        {errors.image && <Text style={styles.errorText}>{errors.image}</Text>}
 
         <TouchableOpacity
           style={[styles.submitButton, loading && styles.submitButtonDisabled]}
@@ -326,6 +362,11 @@ const styles = StyleSheet.create({
     padding: 14,
     color: "#fff",
     fontSize: 15,
+    borderWidth: 1,
+    borderColor: "#2A2B30",
+  },
+  inputError: {
+    borderColor: "#F44336",
   },
   textArea: {
     height: 100,
@@ -348,6 +389,9 @@ const styles = StyleSheet.create({
     backgroundColor: bg.tertiary,
     borderColor: bg.tertiary,
   },
+  dropdownOptionError: {
+    borderColor: "#F44336",
+  },
   dropdownOptionText: {
     color: "#aaa",
     fontSize: 14,
@@ -355,6 +399,11 @@ const styles = StyleSheet.create({
   dropdownOptionTextSelected: {
     color: "#fff",
     fontWeight: "600",
+  },
+  errorText: {
+    color: "#F44336",
+    fontSize: 12,
+    marginTop: 4,
   },
   submitButton: {
     backgroundColor: bg.tertiary,

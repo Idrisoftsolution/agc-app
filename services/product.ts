@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 const ProductClient = axios.create({
-    baseURL: `${process.env.EXPO_PUBLIC_BACKEND_API}/product`,
+    baseURL: `${process.env.EXPO_PUBLIC_BACKEND_API}/v1/product`,
     headers: {
         'Content-Type': 'application/json'
     },

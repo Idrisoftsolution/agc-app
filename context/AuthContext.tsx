@@ -12,6 +12,7 @@ interface User {
 
 interface AuthContextType {
   user: User | null;
+  token: string | null;
   login: (email: string, password: string) => Promise<boolean>;
   glogin: (tokenId: string) => Promise<boolean>;
   signup: (email: string, password: string, name: string) => Promise<boolean>;
@@ -40,6 +41,7 @@ export const useAuth = () => {
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
 
@@ -53,13 +55,16 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
         if (storedUser) {
           setUser(storedUser.user);
+          setToken(storedUser.token || null);
         } else {
           console.log('User not found in localStorage');
           setUser(null);
+          setToken(null);
         }
       } catch (error) {
         console.error('Error fetching user:', error);
         setUser(null);
+        setToken(null);
       } finally {
         setIsLoading(false); // ✅ only after fetch finishes
       }
@@ -76,12 +81,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
       const account = await signIn(email, password)
       
-      if (account) {
+
+      if (account && account.success) {
 
 
         setUser(account.user);
+        setToken(account.accessToken || null);
         setIsLoading(false);
-        return account;
+        return true;
       }
 
 
@@ -108,6 +115,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (account.success) {
 
         setUser(account?.user);
+        setToken(account?.token || null);
       } 
       setIsLoading(false);
       return account;
@@ -174,6 +182,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       if (account.success) {
         // console.log(account)
         setUser(account?.user);
+        setToken(account?.token || null);
       }
       setIsLoading(false);
       return account;
@@ -190,10 +199,12 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     // localStorage.removeItem('userData');
     // localStorage.removeItem('userToken');
     setUser(null);
+    setToken(null);
   };
 
   const value = {
     user,
+    token,
     login,
     signup,
     logout,
